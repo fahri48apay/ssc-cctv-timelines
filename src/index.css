@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    border-color: var(--color-slate-850, #1e293b);
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:p-0 {
+    padding: 0 !important;
+  }
+}

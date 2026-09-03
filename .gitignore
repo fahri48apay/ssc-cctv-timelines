@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+android-wrapper/app/build/
+android-wrapper/app/.gradle/
+android-wrapper/.gradle/
+android-wrapper/local.properties
+.DS_Store
