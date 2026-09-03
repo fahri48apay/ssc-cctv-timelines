@@ -1,8 +1,6 @@
 node_modules/
-dist/
+#dist/
 .env
-android-wrapper/app/build/
-android-wrapper/app/.gradle/
-android-wrapper/.gradle/
-android-wrapper/local.properties
+android-wrapper/
+build_apk.sh
 .DS_Store
