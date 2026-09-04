@@ -1,19 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { CCTVReport } from './types/report';
+import { AuthUser } from './types/auth';
 import { INITIAL_REPORTS } from './data/seedReports';
 import { DashboardStats } from './components/DashboardStats';
 import { ReportForm } from './components/ReportForm';
 import { ArchiveList } from './components/ArchiveList';
 import { PrintableReport } from './components/PrintableReport';
+import { LoginPage } from './components/LoginPage';
 import { exportAllReportsToWorkbook, parseExcelToReports } from './utils/excelHandler';
 import { 
   Shield, LayoutDashboard, Calendar, 
-  Upload, Download, Plus, CheckCircle2, AlertCircle
+  Upload, Download, Plus, CheckCircle2, AlertCircle,
+  LogOut, User as UserIcon
 } from 'lucide-react';
 
 const STORAGE_KEY = 'ssc_cctv_reports_v1';
+const AUTH_KEY = 'ssc_cctv_auth_user_v1';
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+    try {
+      const saved = localStorage.getItem(AUTH_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error('Failed to load auth state', e);
+    }
+    return null;
+  });
+
   const [reports, setReports] = useState<CCTVReport[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -39,6 +53,26 @@ export default function App() {
       console.error('Failed to save reports to storage', e);
     }
   }, [reports]);
+
+  const handleLogin = (user: AuthUser) => {
+    setCurrentUser(user);
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+    } catch (e) {
+      console.error('Failed to persist auth user', e);
+    }
+    showNotification(`Akses diberikan: ${user.roleTitle} (${user.badgeNumber})`, 'success');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem(AUTH_KEY);
+    } catch (e) {
+      console.error('Failed to remove auth session', e);
+    }
+    showNotification('Anda telah berhasil keluar dari sistem.', 'info');
+  };
 
   const showNotification = (message: string, type: 'success' | 'info' = 'success') => {
     setNotification({ message, type });
@@ -102,7 +136,6 @@ export default function App() {
       if (imported.length > 0) {
         setReports(prev => {
           const newReports = [...(imported as CCTVReport[]), ...prev];
-          // Deduplicate by nomorLaporan
           const seen = new Set<string>();
           return newReports.filter(r => {
             if (seen.has(r.nomorLaporan)) return false;
@@ -117,6 +150,21 @@ export default function App() {
     } catch (err) {
       console.error(err);
       showNotification('Gagal membaca file Excel. Pastikan format sesuai.', 'info');
+    }
+  };
+
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  const getRoleBadgeClasses = (role: string) => {
+    switch (role) {
+      case 'chief':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      case 'spv':
+        return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+      default:
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
     }
   };
 
@@ -136,7 +184,7 @@ export default function App() {
       )}
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
             <Shield className="w-5 h-5 text-white" />
@@ -194,11 +242,25 @@ export default function App() {
           </button>
         </nav>
 
-        {/* Excel Import / Export Quick Buttons */}
-        <div className="flex items-center gap-2">
-          <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition">
+        {/* User Info & Actions */}
+        <div className="flex items-center gap-2.5">
+          {/* User Role Pill */}
+          <div className="hidden sm:flex items-center gap-2 pl-2 pr-3 py-1 bg-slate-900/90 rounded-xl border border-slate-800">
+            <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-cyan-400">
+              <UserIcon className="w-3.5 h-3.5" />
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-semibold text-slate-200 leading-none">{currentUser.roleTitle}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">{currentUser.badgeNumber}</div>
+            </div>
+            <span className={`text-[10px] ml-1 px-1.5 py-0.5 rounded border font-medium ${getRoleBadgeClasses(currentUser.role)}`}>
+              {currentUser.shift || 'Online'}
+            </span>
+          </div>
+
+          <label className="cursor-pointer flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition">
             <Upload className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden md:inline">Import Excel</span>
+            <span className="hidden md:inline">Import</span>
             <input
               type="file"
               accept=".xlsx,.xls"
@@ -210,11 +272,21 @@ export default function App() {
           <button
             type="button"
             onClick={() => exportAllReportsToWorkbook(reports)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800/60 text-emerald-300 rounded-xl text-xs font-semibold transition"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800/60 text-emerald-300 rounded-xl text-xs font-semibold transition"
             title="Download Semua Laporan Format Excel"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Export Excel</span>
+            <span className="hidden md:inline">Export</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-xs font-semibold transition"
+            title="Keluar dari sistem"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Keluar</span>
           </button>
         </div>
       </header>
